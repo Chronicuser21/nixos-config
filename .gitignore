@@ -3,7 +3,6 @@ result
 result-*
 
 # Hardware-specific files (will be regenerated)
-hosts/*/hardware-configuration.nix
 
 # Secrets and personal info
 *.key
