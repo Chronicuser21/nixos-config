@@ -40,6 +40,8 @@
     yazi
     neofetch
     tree
+    crowdsec
+    crowdsec-firewall-bouncer
     wget
     curl
     git

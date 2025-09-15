@@ -27,7 +27,10 @@
   networking = {
     hostName = host;
     networkmanager.enable = true;
-    firewall.enable = false;
+    firewall = {
+      enable = true;
+      allowedTCPPorts = [ 22 8080 ];
+    };
   };
 
   # Localization
