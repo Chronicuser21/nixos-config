@@ -31,7 +31,10 @@ LUKS_PASS=""
 LUKS_HOME_PASS=""
 LOCALE=""
 TIMEZONE=""
+# Desktop selection reserved for future use
+# shellcheck disable=SC2034
 INSTALL_DE="no"
+# shellcheck disable=SC2034
 SELECTED_DE=""
 LUKS_ROOT_NAME="void_crypt_root"
 LUKS_HOME_NAME="void_crypt_home"
@@ -231,7 +234,7 @@ format_and_mount() {
         *) print_error "Unknown FS type '$FS_TYPE'"; exit 1 ;;
     esac
 
-    if [ "$SEPARATE_HOME" = "yes" ]; then
+    if [ "$SEPARATE_HOME" = "yes" ] && [ -n "$HOME_DEV" ]; then
         echo "Formatting /home on $HOME_DEV as ext4 ..."
         mkfs.ext4 -F "$HOME_DEV"
     fi
@@ -239,7 +242,7 @@ format_and_mount() {
     echo "Mounting..."
     mkdir -p "$MOUNT_DIR"
     mount "$ROOT_DEV" "$MOUNT_DIR"
-    if [ "$SEPARATE_HOME" = "yes" ]; then
+    if [ "$SEPARATE_HOME" = "yes" ] && [ -n "$HOME_DEV" ]; then
         mkdir -p "$MOUNT_DIR/home"
         mount "$HOME_DEV" "$MOUNT_DIR/home"
     fi
@@ -310,7 +313,7 @@ UUID=$ROOT_UUID / $FS_TYPE defaults 0 1
 UUID=$EFI_UUID /boot/efi vfat defaults 0 2
 EOF
 
-    if [ "$SEPARATE_HOME" = "yes" ]; then
+    if [ "$SEPARATE_HOME" = "yes" ] && [ -n "$HOME_DEV" ]; then
         HOME_UUID=$(blkid -s UUID -o value "$HOME_DEV")
         echo "UUID=$HOME_UUID /home ext4 defaults 0 2" >> "$MOUNT_DIR/etc/fstab"
     fi
@@ -332,8 +335,8 @@ install_bootloader() {
 
     # Create NVRAM entry
     local disk partnum
-    disk=$(echo "$EFI_DEV" | sed 's/p[0-9]\+$//')
-    partnum=$(echo "$EFI_DEV" | grep -o '[0-9]\+$')
+    disk=${EFI_DEV%p[0-9]*}
+    partnum=${EFI_DEV##*p}
     efibootmgr --create --disk "$disk" --part "$partnum" \
         --label "Void Linux" --loader "\\EFI\\void\\grubaa64.efi"
 }
