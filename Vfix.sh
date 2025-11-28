@@ -71,7 +71,7 @@ trap cleanup_on_error ERR
 
 show_welcome() {
   dialog --title "Void Linux Installer for M1 Mac" \
-    --msgbox "Welcome to the Void Linux installer for Apple Silicon Macs!\n\nThis installer will help you install Void Linux with:\n• Full LUKS encryption support\n• Asahi Linux kernel and drivers\n• Desktop environment options\n• M1/M2 optimized packages\n\nPrerequisites:\n• Partitioned disk via macOS Disk Utility\n• Active internet connection\n• Running from Asahi Linux live environment\n\nIMPORTANT: This installer will NOT touch the Asahi EFI partition\nto preserve your existing Asahi Linux installation." 22 70
+    --msgbox "Welcome to the Void Linux installer for Apple Silicon Macs!\n\nThis installer will help you install Void Linux with:\n• Full LUKS encryption support\n• Asahi Linux kernel and drivers\n• Desktop environment options\n• M1/M2 optimized packages\n\nPrerequisites:\n• Partitioned disk via macOS Disk Utility\n• Active internet connection\n• Running from Asahi Linux live environment\n\nIMPORTANT: This installer uses the existing Asahi EFI partition\nand only modifies the free space created by Asahi installer." 22 70
 }
 
 select_partition() {
@@ -218,17 +218,11 @@ main_menu() {
     fi
   fi
 
-  EFI_PART=$(lsblk -o NAME,PARTTYPE,LABEL | grep -i "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" | grep -v -i "asahi\|m1n1" | awk '{print $1}' | head -n1 | sed 's/[├─└│]//g' | tr -d ' ')
+  # Use the Asahi EFI partition as per official documentation
+  EFI_PART=$(lsblk -o NAME,PARTTYPE | grep -i "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" | awk '{print $1}' | head -n1 | sed 's/[├─└│]//g' | tr -d ' ')
   if [ -z "$EFI_PART" ]; then
-    print_warn "No suitable EFI partition found (excluding Asahi EFI)"
-    EFI_PART=$(select_partition "EFI Partition (NOT Asahi EFI)")
+    EFI_PART=$(select_partition "EFI System Partition (Asahi created)")
     [ -z "$EFI_PART" ] && exit 1
-    
-    # Verify it's not Asahi EFI
-    if lsblk -o LABEL "/dev/$EFI_PART" | grep -qi "asahi\|m1n1"; then
-      dialog --title "Error" --msgbox "Cannot use Asahi EFI partition!\nThis would break your Asahi Linux installation." 8 50
-      exit 1
-    fi
   fi
 
   FS_TYPE=$(select_filesystem)
@@ -332,13 +326,6 @@ perform_installation() {
     fi
 
     mkdir -p "$MOUNT_DIR/boot/efi"
-    
-    # Final safety check before mounting EFI
-    if lsblk -o LABEL "/dev/$EFI_PART" | grep -qi "asahi\|m1n1"; then
-      print_error "Refusing to mount Asahi EFI partition!"
-      exit 1
-    fi
-    
     mount "/dev/$EFI_PART" "$MOUNT_DIR/boot/efi"
 
     echo "40" ; echo "# Downloading base system..."
@@ -369,7 +356,8 @@ perform_installation() {
 set -e
 xbps-install -Syu xbps
 xbps-install -Syu
-xbps-install -y base-system linux-asahi linux-firmware-asahi
+xbps-install -y base-system asahi-base
+xbps-install -y linux-asahi linux-firmware-asahi
 xbps-install -y mesa-asahi speakersafetyd asahi-audio
 xbps-install -y cryptsetup lvm2 grub-arm64-efi
 xbps-install -y NetworkManager dhcpcd iwd wpa_supplicant
