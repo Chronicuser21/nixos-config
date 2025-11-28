@@ -2,8 +2,6 @@
 
 # Void Linux Installer for M1 Mac (Asahi Linux)
 # With LUKS Encryption Support and TUI Interface
-# This script assumes you’ve already partitioned your drive using macOS Disk Utility
-# and are running from an Asahi Linux live environment
 
 set -e
 
@@ -11,8 +9,7 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-#BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # Global variables
 MOUNT_DIR="/mnt"
@@ -25,19 +22,9 @@ SEPARATE_HOME="no"
 INSTALL_DE="no"
 SELECTED_DE=""
 
-# Functions
-
-print_msg() {
-  echo -e "${GREEN}[*]${NC} $1"
-}
-
-print_warn() {
-  echo -e "${YELLOW}[!]${NC} $1"
-}
-
-print_error() {
-  echo -e "${RED}[ERROR]${NC} $1"
-}
+print_msg() { echo -e "${GREEN}[*]${NC} $1"; }
+print_warn() { echo -e "${YELLOW}[!]${NC} $1"; }
+print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 check_root() {
   if [ "$EUID" -ne 0 ]; then
@@ -55,7 +42,6 @@ check_architecture() {
 
 check_dependencies() {
   local missing_deps=()
-
   for dep in dialog cryptsetup wget tar xchroot; do
     if ! command -v "$dep" &> /dev/null; then
       missing_deps+=("$dep")
@@ -83,20 +69,9 @@ cleanup_on_error() {
 
 trap cleanup_on_error ERR
 
-# Dialog functions
-
 show_welcome() {
   dialog --title "Void Linux Installer for M1 Mac" \
-    --msgbox "Welcome to the Void Linux installer for Apple Silicon Macs!\n\n\
-This installer will help you install Void Linux with:\n\
-• Full LUKS encryption support\n\
-• Asahi Linux kernel and drivers\n\
-• Desktop environment options\n\
-• M1/M2 optimized packages\n\n\
-Prerequisites:\n\
-• Partitioned disk via macOS Disk Utility\n\
-• Active internet connection\n\
-• Running from Asahi Linux live environment" 20 70
+    --msgbox "Welcome to the Void Linux installer for Apple Silicon Macs!\n\nThis installer will help you install Void Linux with:\n• Full LUKS encryption support\n• Asahi Linux kernel and drivers\n• Desktop environment options\n• M1/M2 optimized packages\n\nPrerequisites:\n• Partitioned disk via macOS Disk Utility\n• Active internet connection\n• Running from Asahi Linux live environment\n\nIMPORTANT: This installer will NOT touch the Asahi EFI partition\nto preserve your existing Asahi Linux installation." 22 70
 }
 
 select_partition() {
@@ -104,45 +79,35 @@ select_partition() {
   local partitions=()
 
   while IFS= read -r line; do
-  local name
-name=$(echo "$line" | awk '{print $1}')
-local size
-size=$(echo "$line" | awk '{print $2}')
-local type
-type=$(echo "$line" | awk '{print $3}')
+    local name size type
+    name=$(echo "$line" | awk '{print $1}')
+    size=$(echo "$line" | awk '{print $2}')
+    type=$(echo "$line" | awk '{print $3}')
 
     if [[ "$name" =~ ^nvme.*p[0-9]+$ ]] || [[ "$name" =~ ^sd[a-z][0-9]+$ ]]; then
       partitions+=("$name" "$size $type")
     fi
-  done < <(lsblk -ln -o NAME,SIZE,TYPE | grep -E "part|disk")
+  done < <(lsblk -ln -o NAME,SIZE,TYPE | grep -E "part")
 
   if [ ${#partitions[@]} -eq 0 ]; then
     dialog --title "Error" --msgbox "No partitions found!" 7 40
     return 1
   fi
 
-  local selection
-  selection=$(dialog --stdout --title "$title" \
-    --menu "Select partition:" 20 60 10 \
-    "${partitions[@]}")
-
-  echo "$selection"
+  dialog --stdout --title "$title" --menu "Select partition:" 20 60 10 "${partitions[@]}"
 }
 
 select_filesystem() {
-  local fs
-  fs=$(dialog --stdout --title "Filesystem Selection" \
+  dialog --stdout --title "Filesystem Selection" \
     --menu "Choose filesystem for root:" 15 50 4 \
     "ext4" "Recommended - stable and reliable" \
     "btrfs" "Advanced - snapshots and compression" \
     "xfs" "High performance for large files" \
-    "f2fs" "Optimized for flash storage")
-  echo "$fs"
+    "f2fs" "Optimized for flash storage"
 }
 
 select_desktop_environment() {
-  local de
-  de=$(dialog --stdout --title "Desktop Environment" \
+  dialog --stdout --title "Desktop Environment" \
     --menu "Choose desktop environment:" 20 60 8 \
     "none" "No desktop (server/minimal)" \
     "xfce" "Lightweight and fast" \
@@ -151,20 +116,16 @@ select_desktop_environment() {
     "mate" "Traditional desktop" \
     "cinnamon" "Modern but familiar" \
     "lxqt" "Very lightweight Qt desktop" \
-    "sway" "Wayland tiling compositor")
-  echo "$de"
+    "sway" "Wayland tiling compositor"
 }
 
 get_text_input() {
-  local title="$1"
-  local prompt="$2"
-  local default="$3"
+  local title="$1" prompt="$2" default="$3"
   dialog --stdout --title "$title" --inputbox "$prompt" 10 60 "$default"
 }
 
 get_password() {
-  local title="$1"
-  local prompt="$2"
+  local title="$1" prompt="$2"
   dialog --stdout --title "$title" --passwordbox "$prompt" 10 60
 }
 
@@ -186,13 +147,11 @@ select_locale() {
   if [ "$locale" = "custom" ]; then
     locale=$(get_text_input "Custom Locale" "Enter locale (e.g., pt_BR.UTF-8):" "")
   fi
-
   echo "$locale"
 }
 
 select_timezone() {
-  local region continent
-
+  local continent region
   continent=$(dialog --stdout --title "Timezone - Continent" \
     --menu "Select continent:" 20 60 10 \
     "America" "" "Europe" "" "Asia" "" "Africa" "" \
@@ -204,9 +163,11 @@ select_timezone() {
   fi
 
   local cities=()
-  while IFS= read -r city; do
-    cities+=("$city" "")
-  done < <(find "/usr/share/zoneinfo/$continent" -type f -printf "%f\n" 2>/dev/null | sort)
+  if [ -d "/usr/share/zoneinfo/$continent" ]; then
+    while IFS= read -r city; do
+      cities+=("$city" "")
+    done < <(find "/usr/share/zoneinfo/$continent" -type f -printf "%f\n" 2>/dev/null | sort)
+  fi
 
   if [ ${#cities[@]} -eq 0 ]; then
     echo "UTC"
@@ -214,9 +175,7 @@ select_timezone() {
   fi
 
   region=$(dialog --stdout --title "Timezone - City" \
-    --menu "Select city/region:" 20 60 15 \
-    "${cities[@]}")
-
+    --menu "Select city/region:" 20 60 15 "${cities[@]}")
   echo "$continent/$region"
 }
 
@@ -237,21 +196,16 @@ show_summary() {
   dialog --title "Confirmation" --yesno "$summary" 20 70
 }
 
-# Main installation functions
-
 main_menu() {
   show_welcome
 
-  # Partition selection
   ROOT_PART=$(select_partition "Root Partition")
   [ -z "$ROOT_PART" ] && exit 1
 
-  # LUKS for root
   if dialog --title "Encryption" --yesno "Encrypt root partition with LUKS?" 7 50; then
     USE_LUKS="yes"
   fi
 
-  # Home partition
   if dialog --title "Home Partition" --yesno "Create separate /home partition?" 7 50; then
     SEPARATE_HOME="yes"
     HOME_PART=$(select_partition "Home Partition")
@@ -264,18 +218,22 @@ main_menu() {
     fi
   fi
 
-  # Auto-detect EFI
-  EFI_PART=$(lsblk -o NAME,PARTTYPE | grep -i "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" | awk '{print $1}' | head -n1 | sed 's/[├─└│]//g' | tr -d ' ')
+  EFI_PART=$(lsblk -o NAME,PARTTYPE,LABEL | grep -i "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" | grep -v -i "asahi\|m1n1" | awk '{print $1}' | head -n1 | sed 's/[├─└│]//g' | tr -d ' ')
   if [ -z "$EFI_PART" ]; then
-    EFI_PART=$(select_partition "EFI Partition")
+    print_warn "No suitable EFI partition found (excluding Asahi EFI)"
+    EFI_PART=$(select_partition "EFI Partition (NOT Asahi EFI)")
     [ -z "$EFI_PART" ] && exit 1
+    
+    # Verify it's not Asahi EFI
+    if lsblk -o LABEL "/dev/$EFI_PART" | grep -qi "asahi\|m1n1"; then
+      dialog --title "Error" --msgbox "Cannot use Asahi EFI partition!\nThis would break your Asahi Linux installation." 8 50
+      exit 1
+    fi
   fi
 
-  # Filesystem
   FS_TYPE=$(select_filesystem)
   [ -z "$FS_TYPE" ] && exit 1
 
-  # System configuration
   HOSTNAME=$(get_text_input "Hostname" "Enter hostname:" "void-asahi")
   [ -z "$HOSTNAME" ] && HOSTNAME="void-asahi"
 
@@ -300,7 +258,6 @@ main_menu() {
     ROOT_PASS_CONFIRM=$(get_password "Root Password" "Confirm root password:")
   done
 
-  # LUKS passphrase
   if [ "$USE_LUKS" = "yes" ]; then
     LUKS_PASS=$(get_password "LUKS Passphrase" "Enter LUKS passphrase for root:")
     LUKS_PASS_CONFIRM=$(get_password "LUKS Passphrase" "Confirm LUKS passphrase:")
@@ -319,29 +276,24 @@ main_menu() {
     fi
   fi
 
-  # Locale and timezone
   LOCALE=$(select_locale)
   [ -z "$LOCALE" ] && LOCALE="en_US.UTF-8"
 
   TIMEZONE=$(select_timezone)
   [ -z "$TIMEZONE" ] && TIMEZONE="UTC"
 
-  # Desktop environment
   SELECTED_DE=$(select_desktop_environment)
   if [ "$SELECTED_DE" != "none" ]; then
     INSTALL_DE="yes"
   fi
 
-  # Show summary and confirm
   show_summary || exit 0
 }
 
 perform_installation() {
-  # Setup progress display
   (
     echo "10" ; echo "# Setting up LUKS encryption..."
 
-    # Setup LUKS if requested
     if [ "$USE_LUKS" = "yes" ]; then
       echo -n "$LUKS_PASS" | cryptsetup luksFormat --type luks2 "/dev/$ROOT_PART" -
       echo -n "$LUKS_PASS" | cryptsetup open "/dev/$ROOT_PART" void_root -
@@ -360,7 +312,6 @@ perform_installation() {
 
     echo "20" ; echo "# Formatting partitions..."
 
-    # Format partitions
     case $FS_TYPE in
       ext4) mkfs.ext4 -F "$ROOT_DEVICE" ;;
       btrfs) mkfs.btrfs -f "$ROOT_DEVICE" ;;
@@ -372,7 +323,6 @@ perform_installation() {
 
     echo "30" ; echo "# Mounting partitions..."
 
-    # Mount partitions
     mkdir -p "$MOUNT_DIR"
     mount "$ROOT_DEVICE" "$MOUNT_DIR"
 
@@ -382,11 +332,17 @@ perform_installation() {
     fi
 
     mkdir -p "$MOUNT_DIR/boot/efi"
+    
+    # Final safety check before mounting EFI
+    if lsblk -o LABEL "/dev/$EFI_PART" | grep -qi "asahi\|m1n1"; then
+      print_error "Refusing to mount Asahi EFI partition!"
+      exit 1
+    fi
+    
     mount "/dev/$EFI_PART" "$MOUNT_DIR/boot/efi"
 
     echo "40" ; echo "# Downloading base system..."
 
-    # Download and extract base system
     cd /tmp
     if [ ! -f void-rootfs.tar.xz ]; then
       wget -O void-rootfs.tar.xz "https://repo-default.voidlinux.org/live/current/void-aarch64-ROOTFS-20240314.tar.xz"
@@ -397,7 +353,6 @@ perform_installation() {
 
     echo "60" ; echo "# Preparing chroot environment..."
 
-    # Mount virtual filesystems
     mount --rbind /sys "$MOUNT_DIR/sys"
     mount --make-rslave "$MOUNT_DIR/sys"
     mount --rbind /dev "$MOUNT_DIR/dev"
@@ -409,53 +364,26 @@ perform_installation() {
 
     echo "70" ; echo "# Installing packages..."
 
-    # Create setup script for chroot
     cat << 'CHROOT_EOF' > "$MOUNT_DIR/tmp/setup.sh"
 #!/bin/bash
 set -e
-
-# Update xbps
 xbps-install -Syu xbps
-
-# Update system
 xbps-install -Syu
-
-# Install base system
-xbps-install -y base-system
-
-# Install Asahi kernel and firmware
-xbps-install -y linux-asahi linux-firmware-asahi
-
-# Install additional Asahi packages for M1/M2
+xbps-install -y base-system linux-asahi linux-firmware-asahi
 xbps-install -y mesa-asahi speakersafetyd asahi-audio
-
-# Install cryptsetup for LUKS
-xbps-install -y cryptsetup lvm2
-
-# Install bootloader
-xbps-install -y grub-arm64-efi
-
-# Install network tools
+xbps-install -y cryptsetup lvm2 grub-arm64-efi
 xbps-install -y NetworkManager dhcpcd iwd wpa_supplicant
-
-# Install essential tools
 xbps-install -y vim nano wget curl git htop tmux
-
-# Install file system tools
 xbps-install -y e2fsprogs dosfstools ntfs-3g exfatprogs
-
-# Enable services
 ln -sf /etc/sv/NetworkManager /etc/runit/runsvdir/default/
 ln -sf /etc/sv/dbus /etc/runit/runsvdir/default/
 CHROOT_EOF
 
     chmod +x "$MOUNT_DIR/tmp/setup.sh"
-
     xchroot "$MOUNT_DIR" /tmp/setup.sh
 
     echo "80" ; echo "# Installing desktop environment..."
 
-    # Install desktop environment if selected
     if [ "$INSTALL_DE" = "yes" ]; then
       case $SELECTED_DE in
         xfce)
@@ -490,25 +418,20 @@ CHROOT_EOF
 
     echo "85" ; echo "# Configuring system..."
 
-    # Configure hostname
     echo "$HOSTNAME" > "$MOUNT_DIR/etc/hostname"
 
-    # Configure hosts
     cat > "$MOUNT_DIR/etc/hosts" << EOF
 127.0.0.1   localhost
 ::1         localhost
 127.0.1.1   $HOSTNAME.localdomain $HOSTNAME
 EOF
 
-    # Configure locale
     echo "LANG=$LOCALE" > "$MOUNT_DIR/etc/locale.conf"
     echo "$LOCALE UTF-8" >> "$MOUNT_DIR/etc/default/libc-locales"
     xchroot "$MOUNT_DIR" xbps-reconfigure -f glibc-locales
 
-    # Configure timezone
     xchroot "$MOUNT_DIR" ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 
-    # Configure crypttab for LUKS
     if [ "$USE_LUKS" = "yes" ]; then
       ROOT_UUID=$(blkid -s UUID -o value "/dev/$ROOT_PART")
       echo "void_root UUID=$ROOT_UUID none luks" > "$MOUNT_DIR/etc/crypttab"
@@ -519,7 +442,6 @@ EOF
       fi
     fi
 
-    # Configure fstab
     if [ "$USE_LUKS" = "yes" ]; then
       ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEVICE")
     else
@@ -528,7 +450,6 @@ EOF
     EFI_UUID=$(blkid -s UUID -o value "/dev/$EFI_PART")
 
     cat > "$MOUNT_DIR/etc/fstab" << EOF
-# <file system> <dir> <type> <options> <dump> <pass>
 UUID=$ROOT_UUID / $FS_TYPE defaults 0 1
 UUID=$EFI_UUID /boot/efi vfat defaults 0 2
 EOF
@@ -542,47 +463,39 @@ EOF
       echo "UUID=$HOME_UUID /home ext4 defaults 0 2" >> "$MOUNT_DIR/etc/fstab"
     fi
 
-    # Configure GRUB for LUKS
     if [ "$USE_LUKS" = "yes" ]; then
       LUKS_UUID=$(blkid -s UUID -o value "/dev/$ROOT_PART")
       sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"/GRUB_CMDLINE_LINUX_DEFAULT=\"cryptdevice=UUID=$LUKS_UUID:void_root /" "$MOUNT_DIR/etc/default/grub"
       echo "GRUB_ENABLE_CRYPTODISK=y" >> "$MOUNT_DIR/etc/default/grub"
+      mkdir -p "$MOUNT_DIR/etc/dracut.conf.d"
       echo 'add_dracutmodules+=" crypt dm "' >> "$MOUNT_DIR/etc/dracut.conf.d/10-crypt.conf"
     fi
 
     echo "90" ; echo "# Setting passwords..."
 
-    # Set passwords
     echo "root:$ROOT_PASS" | xchroot "$MOUNT_DIR" chpasswd
     xchroot "$MOUNT_DIR" useradd -m -G wheel,audio,video,optical,storage "$USERNAME"
     echo "$USERNAME:$USER_PASS" | xchroot "$MOUNT_DIR" chpasswd
 
-    # Configure sudo
     xchroot "$MOUNT_DIR" xbps-install -y sudo
     echo "%wheel ALL=(ALL) ALL" >> "$MOUNT_DIR/etc/sudoers"
 
     echo "95" ; echo "# Installing bootloader..."
 
-    # Regenerate initramfs
     [ "$USE_LUKS" = "yes" ] && xchroot "$MOUNT_DIR" dracut --force --hostonly
 
-    # Install GRUB
     xchroot "$MOUNT_DIR" grub-install --target=arm64-efi --efi-directory=/boot/efi --bootloader-id=void --removable
     xchroot "$MOUNT_DIR" grub-mkconfig -o /boot/grub/grub.cfg
 
     echo "98" ; echo "# Finalizing installation..."
 
-    # Reconfigure packages
     xchroot "$MOUNT_DIR" xbps-reconfigure -fa
-
-    # Cleanup
     rm -f "$MOUNT_DIR/tmp/setup.sh"
 
     echo "100" ; echo "# Installation complete!"
 
   ) | dialog --title "Installing Void Linux" --gauge "Starting installation..." 10 70 0
 
-  # Unmount and close LUKS
   umount -R "$MOUNT_DIR"
   if [ "$USE_LUKS" = "yes" ]; then
     cryptsetup close void_root
@@ -609,8 +522,6 @@ show_completion() {
   dialog --title "Installation Complete" --msgbox "$message" 20 70
 }
 
-# Main execution
-
 clear
 check_root
 check_architecture
@@ -623,4 +534,3 @@ show_completion
 clear
 print_msg "Installation complete!"
 print_msg "Don't forget to run: sudo update-m1n1"
-echo ""
