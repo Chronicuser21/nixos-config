@@ -54,10 +54,9 @@ select_partition() {
   lsblk -o NAME,SIZE,TYPE,MOUNTPOINT | grep -E "(nvme|disk|part)"
   
   while IFS= read -r line; do
-    local name size type
+    local name size
     name=$(echo "$line" | awk '{print $1}')
     size=$(echo "$line" | awk '{print $2}')
-    type=$(echo "$line" | awk '{print $3}')
 
     if [[ "$name" =~ ^nvme.*p[0-9]+$ ]] && [[ ! "$name" =~ p1$ ]]; then
       partitions+=("$name" "$size")
@@ -75,28 +74,28 @@ select_partition() {
     echo "$((i/2+1)). ${partitions[i]} (${partitions[i+1]})"
   done
   
-  read -p "Select partition number: " choice
+  read -r -p "Select partition number: " choice
   local idx=$(((choice-1)*2))
   echo "${partitions[idx]}"
 }
 
 get_input() {
   local prompt="$1" default="$2"
-  read -p "$prompt [$default]: " input
+  read -r -p "$prompt [$default]: " input
   echo "${input:-$default}"
 }
 
 get_password() {
   local prompt="$1"
-  read -s -p "$prompt: " pass1
+  read -r -s -p "$prompt: " pass1
   echo
-  read -s -p "Confirm password: " pass2
+  read -r -s -p "Confirm password: " pass2
   echo
   while [ "$pass1" != "$pass2" ]; do
     print_error "Passwords do not match!"
-    read -s -p "$prompt: " pass1
+    read -r -s -p "$prompt: " pass1
     echo
-    read -s -p "Confirm password: " pass2
+    read -r -s -p "Confirm password: " pass2
     echo
   done
   echo "$pass1"
@@ -119,7 +118,7 @@ main_setup() {
   ROOT_PART=$(select_partition "Root partition (free space from Asahi)")
   [ -z "$ROOT_PART" ] && exit 1
 
-  read -p "Use LUKS encryption? (y/N): " luks_choice
+  read -r -p "Use LUKS encryption? (y/N): " luks_choice
   [ "$luks_choice" = "y" ] || [ "$luks_choice" = "Y" ] && USE_LUKS="yes"
 
   HOSTNAME=$(get_input "Hostname" "void-asahi")
@@ -143,7 +142,7 @@ main_setup() {
   echo "Hostname: $HOSTNAME"
   echo "Username: $USERNAME"
   echo
-  read -p "Continue? (y/N): " confirm
+  read -r -p "Continue? (y/N): " confirm
   [ "$confirm" != "y" ] && [ "$confirm" != "Y" ] && exit 0
 }
 
