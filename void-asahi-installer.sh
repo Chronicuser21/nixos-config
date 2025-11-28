@@ -205,7 +205,7 @@ ln -sf /etc/sv/dbus /etc/runit/runsvdir/default/
 CHROOT_EOF
 
   chmod +x "$MOUNT_DIR/tmp/install.sh"
-  chroot "$MOUNT_DIR" /tmp/install.sh
+  xchroot "$MOUNT_DIR" /tmp/install.sh
 
   # Configure system
   print_msg "Configuring system..."
@@ -219,8 +219,8 @@ EOF
 
   echo "LANG=$LOCALE" > "$MOUNT_DIR/etc/locale.conf"
   echo "$LOCALE UTF-8" >> "$MOUNT_DIR/etc/default/libc-locales"
-  chroot "$MOUNT_DIR" xbps-reconfigure -f glibc-locales
-  chroot "$MOUNT_DIR" ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
+  xchroot "$MOUNT_DIR" xbps-reconfigure -f glibc-locales
+  xchroot "$MOUNT_DIR" ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 
   # Setup LUKS in system if used
   if [ "$USE_LUKS" = "yes" ]; then
@@ -252,23 +252,23 @@ EOF
 
   # Create users and set passwords
   print_msg "Setting up users..."
-  echo "root:$ROOT_PASS" | chroot "$MOUNT_DIR" chpasswd
-  chroot "$MOUNT_DIR" useradd -m -G wheel,audio,video,optical,storage "$USERNAME"
-  echo "$USERNAME:$USER_PASS" | chroot "$MOUNT_DIR" chpasswd
-  chroot "$MOUNT_DIR" xbps-install -y sudo
+  echo "root:$ROOT_PASS" | xchroot "$MOUNT_DIR" chpasswd
+  xchroot "$MOUNT_DIR" useradd -m -G wheel,audio,video,optical,storage "$USERNAME"
+  echo "$USERNAME:$USER_PASS" | xchroot "$MOUNT_DIR" chpasswd
+  xchroot "$MOUNT_DIR" xbps-install -y sudo
   echo "%wheel ALL=(ALL) ALL" >> "$MOUNT_DIR/etc/sudoers"
 
   # Install and configure bootloader (following Asahi guide)
   print_msg "Installing GRUB bootloader..."
-  [ "$USE_LUKS" = "yes" ] && chroot "$MOUNT_DIR" dracut --force --hostonly
+  [ "$USE_LUKS" = "yes" ] && xchroot "$MOUNT_DIR" dracut --force --hostonly
   
   # Use --removable flag as per Asahi guide
-  chroot "$MOUNT_DIR" grub-install --target=arm64-efi --efi-directory=/boot/efi --bootloader-id=void --removable
-  chroot "$MOUNT_DIR" grub-mkconfig -o /boot/grub/grub.cfg
+  xchroot "$MOUNT_DIR" grub-install --target=arm64-efi --efi-directory=/boot/efi --bootloader-id=void --removable
+  xchroot "$MOUNT_DIR" grub-mkconfig -o /boot/grub/grub.cfg
 
   # Final reconfiguration
   print_msg "Finalizing installation..."
-  chroot "$MOUNT_DIR" xbps-reconfigure -fa
+  xchroot "$MOUNT_DIR" xbps-reconfigure -fa
   rm -f "$MOUNT_DIR/tmp/install.sh"
 
   # Cleanup
