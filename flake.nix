@@ -1,41 +1,56 @@
 {
-  description = "A very basic flake";
+  description = "NixOS in MicroVMs";
 
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
-    apple-silicon.url = "github:nix-community/nixos-apple-silicon";
-   catppuccin.url = "github:catppuccin/nix"; 
- };
+  nixConfig = {
+    extra-substituters = [ "https://microvm.cachix.org" ];
+    extra-trusted-public-keys = [ "microvm.cachix.org-1:oXnBc6hRE3eX5rSYdRyMYXnfzcCxC7yKPTbZXALsqys=" ];
+  };
 
-  outputs = inputs@{ self, nixpkgs, apple-silicon, catppuccin, ... }: 
-let
-system = "aarch64-linux";
-host = "asahi";
-username = "b";
-pkgs = import nixpkgs {
-inherit system;
-config = {
-allowUnfree = true;
-};
-};
-in 
-{
-nixosConfigurations = {
-${host} =
-nixpkgs.lib.nixosSystem rec {
-specialArgs = {
-inherit system;
-inherit inputs;
-inherit username;
-inherit host;
-};
-modules = [ inputs.apple-silicon.nixosModules.default 
-./hardware-configuration.nix
-./configuration.nix
-catppuccin.nixosModules.catppuccin
-];
-   };
-     };
+  inputs.microvm = {
+    url = "github:microvm-nix/microvm.nix";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
 
+  outputs = { self, nixpkgs, microvm }:
+    let
+      system = "x86_64-linux";
+    in {
+      packages.${system} = {
+        default = self.packages.${system}.my-microvm;
+        my-microvm = self.nixosConfigurations.my-microvm.config.microvm.declaredRunner;
+      };
+
+      nixosConfigurations = {
+        my-microvm = nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [
+            microvm.nixosModules.microvm
+            {
+              networking.hostName = "my-microvm";
+              users.users.root.password = "";
+              microvm = {
+                volumes = [ {
+                  mountPoint = "/var";
+                  image = "var.img";
+                  size = 256;
+                } ];
+                shares = [ {
+                  # use proto = "virtiofs" for MicroVMs that are started by systemd
+                  proto = "9p";
+                  tag = "ro-store";
+                  # a host's /nix/store will be picked up so that no
+                  # squashfs/erofs will be built for it.
+                  source = "/nix/store";
+                  mountPoint = "/nix/.ro-store";
+                } ];
+
+                # "qemu" has 9p built-in!
+                hypervisor = "qemu";
+                socket = "control.socket";
+              };
+            }
+          ];
+        };
+      };
     };
 }
