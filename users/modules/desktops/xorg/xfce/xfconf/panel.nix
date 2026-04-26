@@ -1,0 +1,88 @@
+{
+  config,
+  lib,
+  ...
+}:
+# TODO organize plugin indices automatically
+let
+  icon-size = 16;
+  describeFont = config.utils.fonts.describeFont;
+  cfg = config.modules.de.xfconf;
+in {
+  panels = {
+    VALUE = [1];
+    dark-mode = config.colorScheme.variant == "dark";
+    panel-1 = {
+      inherit icon-size;
+      length = 100;
+      size = 20;
+      border-width = 4;
+      # is this right?
+      position = "p=8;x=640;y=786";
+      position-locked = true;
+      plugin-ids = [1 2 3 4 5 6 7 8 9 10 11 12 13];
+
+      enter-opacity = cfg.panelOpacity;
+      leave-opacity = cfg.panelOpacity;
+
+      # use gtk theme for background
+      background-style =
+        if builtins.isNull cfg.panelBackgroundColor
+        then 0
+        else 1;
+      background-rgba =
+        if builtins.isNull cfg.panelBackgroundColor
+        then [
+          0
+          0
+          0
+          0
+        ]
+        else cfg.panelBackgroundColor;
+    };
+  };
+  plugins = let
+    sep = {
+      VALUE = "separator";
+      expand = false;
+      style = 0;
+    };
+    sep-expand = {
+      VALUE = "separator";
+      expand = true;
+      style = 0;
+    };
+  in {
+    plugin-1 = {
+      VALUE = "tasklist";
+      include-all-workspaces = false;
+      grouping = false;
+    };
+    plugin-2 = sep-expand;
+    plugin-3 = "pager";
+    plugin-4 = sep;
+    plugin-5 = {
+      VALUE = "systray";
+      inherit icon-size;
+      square-icons = true;
+    };
+    plugin-6 = "power-manager-plugin";
+    plugin-7 = {
+      VALUE = "pulseaudio";
+      enable-keyboard-shortcuts = true;
+      show-notifications = true;
+    };
+    # plugin-8 = "notification-plugin";
+    plugin-8 = "mailwatch";
+    plugin-9 = sep;
+    plugin-10 = {
+      VALUE = "clock";
+      digital-layout = 3;
+      digital-time-format = "%I:%M %p";
+      digital-time-font = describeFont config.utils.fonts.active.primary;
+    };
+    plugin-11 = sep;
+    plugin-12 = "actions";
+    plugin-13 = sep;
+  };
+}
