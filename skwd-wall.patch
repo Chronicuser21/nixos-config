@@ -1,0 +1,96 @@
+diff --git a/qml/wallpaper/SettingsSlider.qml b/qml/wallpaper/SettingsSlider.qml
+index 08a6f18..14e64ea 100644
+--- a/qml/wallpaper/SettingsSlider.qml
++++ b/qml/wallpaper/SettingsSlider.qml
+@@ -17,33 +17,25 @@ Column {
+     spacing: 4 * Config.uiScale
+     opacity: enabled ? 1.0 : 0.4
+ 
+-    Row {
++    Item {
+         width: parent.width
+-        spacing: 8 * Config.uiScale
++        height: Math.max(_label.implicitHeight, _value.implicitHeight)
+ 
+         Text {
+-            text: root.label
++            id: _label
+             anchors.verticalCenter: parent.verticalCenter
++            text: root.label
+             font.family: Style.fontFamily
+             font.pixelSize: 11 * Config.uiScale
+             font.weight: Font.Medium
+             color: root.colors ? root.colors.tertiary : Qt.rgba(1, 1, 1, 0.5)
+         }
+ 
+-        Item { width: parent.width - _label.width - _value.width - 16; height: 1; visible: false }
+-
+-        Text {
+-            id: _label
+-            text: ""
+-            visible: false
+-            font.family: Style.fontFamily
+-            font.pixelSize: 11 * Config.uiScale
+-        }
+-
+         Text {
+             id: _value
+-            text: root.value
+             anchors.right: parent.right
++            anchors.verticalCenter: parent.verticalCenter
++            text: root.value
+             font.family: Style.fontFamilyCode
+             font.pixelSize: 11 * Config.uiScale
+             font.weight: Font.Bold
+diff --git a/qml/wallpaper/SliceDelegate.qml b/qml/wallpaper/SliceDelegate.qml
+index d9d2fac..f2b2f1d 100644
+--- a/qml/wallpaper/SliceDelegate.qml
++++ b/qml/wallpaper/SliceDelegate.qml
+@@ -110,18 +110,7 @@ Item {
+         NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic }
+     }
+ 
+-    containmentMask: Item {
+-        id: hitMask
+-        function contains(point) {
+-            var w = delegateItem.width
+-            var h = delegateItem.height
+-            if (h <= 0 || w <= 0) return false
+-            var t = point.y / h
+-            var leftX = delegateItem._topLeft * (1.0 - t) + delegateItem._botLeft * t
+-            var rightX = delegateItem._topRight * (1.0 - t) + delegateItem._botRight * t
+-            return point.x >= leftX && point.x <= rightX && point.y >= 0 && point.y <= h
+-        }
+-    }
++    // containmentMask removed - was preventing click detection
+ 
+     Loader {
+         id: sharedVideoLoader
+@@ -807,10 +796,19 @@ Item {
+         hoverEnabled: !delegateItem.flipped
+         acceptedButtons: delegateItem.flipped ? Qt.RightButton : (Qt.LeftButton | Qt.RightButton)
+         cursorShape: delegateItem.flipped ? Qt.ArrowCursor : Qt.PointingHandCursor
++        function _inShape(mx, my) {
++            var w = delegateItem.width, h = delegateItem.height
++            if (h <= 0 || w <= 0) return false
++            var t = my / h
++            var leftX = delegateItem._topLeft * (1.0 - t) + delegateItem._botLeft * t
++            var rightX = delegateItem._topRight * (1.0 - t) + delegateItem._botRight * t
++            return mx >= leftX && mx <= rightX && my >= 0 && my <= h
++        }
+         onPositionChanged: function(mouse) {
+             if (delegateItem.flipped) return
+             if (!delegateItem._listView) return
+             if (delegateItem._listView.moving) return
++            if (!_inShape(mouse.x, mouse.y)) return
+             var globalPos = mapToItem(delegateItem._listView, mouse.x, mouse.y)
+             var dx = Math.abs(globalPos.x - delegateItem._listView.lastMouseX)
+             var dy = Math.abs(globalPos.y - delegateItem._listView.lastMouseY)
+@@ -822,6 +820,7 @@ Item {
+             }
+         }
+         onClicked: function(mouse) {
++            if (!_inShape(mouse.x, mouse.y)) return
+             if (mouse.button === Qt.RightButton) {
+                 if (delegateItem._listView) delegateItem._listView.currentIndex = index
+                 delegateItem.flipped = !delegateItem.flipped

@@ -1,0 +1,4 @@
+# specify the public key used to create secrets/secrets.yaml
+creation_rules:
+  - path_regex: secrets/secrets.yaml$
+    age: age146xv46h0km7k4mvulpknjad0h60ngpqakgfrwat8aaqd8qmzadaqm7tjz7

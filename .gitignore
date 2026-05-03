@@ -1,0 +1,4 @@
+secrets/
+result
+*.lock
+!flake.lock

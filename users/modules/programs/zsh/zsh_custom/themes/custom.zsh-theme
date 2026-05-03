@@ -1,0 +1,1 @@
+PROMPT=$'%F{red}┌─[%f%F{cyan}%n%f%F{red}@%f%F{cyan}%m%f%F{red}]─[%f%F{white}%~%f%F{red}]%f\n%F{red}└──╼%f%F{green}$%f '
